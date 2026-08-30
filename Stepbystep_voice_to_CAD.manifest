@@ -1,0 +1,11 @@
+{
+   "autodeskProduct": "Fusion360",
+   "type": "addin",
+   "id": "Speech_To_CAD",
+   "author": "Rohit RS",
+   "description": { "": "StepByStepCAD Voice Add-in" },
+   "version": "1.0.0",
+   "runOnStartup": false,
+   "supportedOS": "windows|mac",
+   "editEnabled": true
+}

@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #1e1e1e;
+    color: #ffffff;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    height: 100vh;
+    padding: 14px;
+    gap: 10px;
+    user-select: none;
+  }
+  .title {
+    font-size: 11px;
+    font-weight: 600;
+    color: #888;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-top: 4px;
+  }
+  #recordBtn {
+    width: 100%;
+    padding: 13px 0;
+    background: #e53935;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+  }
+  #recordBtn:hover  { background: #c62828; }
+  #recordBtn:active { transform: scale(0.97); }
+  #recordBtn.active {
+    background: #388e3c;
+    animation: pulse 1s infinite;
+  }
+  @keyframes pulse {
+    0%   { opacity: 1.0; }
+    50%  { opacity: 0.65; }
+    100% { opacity: 1.0; }
+  }
+  #status {
+    font-size: 11px;
+    color: #aaa;
+    text-align: center;
+    min-height: 16px;
+    width: 100%;
+  }
+  .hint {
+    font-size: 10px;
+    color: #444;
+    text-align: center;
+  }
+  #log-wrap {
+    width: 100%;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  #log-label {
+    font-size: 9px;
+    color: #444;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  #log {
+    flex: 1;
+    overflow-y: auto;
+    font-size: 10px;
+    line-height: 1.55;
+    color: #666;
+    border-top: 1px solid #2a2a2a;
+    padding-top: 6px;
+  }
+  #log .entry { padding: 1px 0; border-bottom: 1px solid #252525; }
+  #log .entry.speak { color: #5cb3ff; }
+  #log .entry.error { color: #f28b82; }
+  #log .entry.done  { color: #81c995; }
+</style>
+</head>
+<body>
+  <div class="title">StepByStepCAD &#9671; Voice</div>
+  <button id="recordBtn" onclick="record()">&#127908; RECORD</button>
+  <div id="status">Ready &#8212; click to speak a command</div>
+  <div class="hint">Ctrl+Shift+R also works as hotkey</div>
+  <div id="log-wrap">
+    <div id="log-label">&#128266; System log</div>
+    <div id="log"></div>
+  </div>
+
+  <script>
+    var btn   = document.getElementById('recordBtn');
+    var status = document.getElementById('status');
+    var log   = document.getElementById('log');
+    var busy  = false;
+    var _voice = null;
+
+    var PREFERRED_VOICES = [
+      'Microsoft Jenny Online (Natural) - English (United States)',
+      'Microsoft Aria Online (Natural) - English (United States)',
+      'Microsoft Guy Online (Natural) - English (United States)',
+      'Microsoft Natasha Online (Natural) - English (Australia)',
+      'Google US English',
+      'Microsoft David - English (United States)',
+      'Microsoft Zira - English (United States)',
+      'Samantha',
+      'Alex'
+    ];
+
+    function _selectVoice() {
+      var voices = window.speechSynthesis.getVoices();
+      if (!voices || voices.length === 0) return;
+      for (var p = 0; p < PREFERRED_VOICES.length; p++) {
+        for (var v = 0; v < voices.length; v++) {
+          if (voices[v].name === PREFERRED_VOICES[p]) { _voice = voices[v]; return; }
+        }
+      }
+      for (var v = 0; v < voices.length; v++) {
+        if (voices[v].lang && voices[v].lang.indexOf('en') === 0) { _voice = voices[v]; return; }
+      }
+    }
+    window.speechSynthesis.onvoiceschanged = _selectVoice;
+    _selectVoice();
+
+    // AUDIO-01 FIX: many Chromium-based embedded webviews (including
+    // Fusion's palette) enforce an autoplay policy that blocks
+    // speechSynthesis.speak() entirely until the page has received AT
+    // LEAST ONE genuine user gesture (a click or keypress) anywhere on
+    // the page. Previously, the only such gesture was clicking RECORD —
+    // so voice feedback worked after a manual click, but a session
+    // driven purely by wake word (which never touches the palette
+    // directly) could leave speech permanently locked with no audio
+    // ever playing, even though the text log kept updating normally.
+    // This listens for the FIRST click or keypress ANYWHERE on the
+    // palette (not just the record button) to unlock audio as early as
+    // possible, regardless of which trigger method (record button, wake
+    // word, or keyboard shortcut) is actually used afterward.
+    var _audioUnlocked = false;
+    function _unlockAudio() {
+      if (_audioUnlocked) return;
+      _audioUnlocked = true;
+      try {
+        var u = new SpeechSynthesisUtterance(' ');
+        u.volume = 0;
+        window.speechSynthesis.speak(u);
+      } catch (e) {}
+    }
+    document.addEventListener('click', _unlockAudio, { once: true });
+    document.addEventListener('keydown', _unlockAudio, { once: true });
+
+    function _speak(text) {
+      window.speechSynthesis.cancel();
+      // Defensive: some browsers leave the speech queue in a "paused"
+      // state after periods of inactivity, silently dropping subsequent
+      // .speak() calls. Explicitly resuming before every utterance is a
+      // well-known, harmless workaround for that class of bug.
+      window.speechSynthesis.resume();
+      var u = new SpeechSynthesisUtterance(text);
+      u.rate = 1.0; u.pitch = 1.0; u.volume = 1.0;
+      if (_voice) u.voice = _voice;
+      window.speechSynthesis.speak(u);
+    }
+
+    function _log(text, cls) {
+      var d = document.createElement('div');
+      d.className = 'entry ' + (cls || '');
+      d.textContent = text;
+      log.appendChild(d);
+      while (log.children.length > 40) { log.removeChild(log.firstChild); }
+      log.scrollTop = log.scrollHeight;
+    }
+
+    function record() {
+      if (busy) return;
+      busy = true;
+      btn.classList.add('active');
+      btn.textContent = 'LISTENING...';
+      status.textContent = 'Mic active — speak now';
+      adsk.fusionSendData('record', '{}');
+      setTimeout(function() {
+        btn.classList.remove('active');
+        btn.textContent = '&#127908; RECORD';
+        status.textContent = 'Processing...';
+        busy = false;
+      }, 10500);
+    }
+
+    window.fusionJavaScriptHandler = {
+      handle: function(action, data) {
+
+        if (action === 'recording') {
+          // Wake word detected — same visual as clicking RECORD manually
+          // No timeout: Python sends 'processing' then 'ready' to reset
+          btn.classList.add('active');
+          btn.textContent = 'LISTENING...';
+          status.textContent = 'Mic active — speak now';
+          busy = true;
+          _log('🎤 Wake word detected — mic active', 'speak');
+
+        } else if (action === 'processing') {
+          btn.classList.remove('active');
+          btn.textContent = '🎤 RECORD';
+          status.textContent = 'Processing...';
+          busy = false;
+          _log('⏳ Processing...', 'done');
+
+        } else if (action === 'speak') {
+          status.textContent = data;
+          _speak(data);
+          _log('🔊 ' + data, 'speak');
+
+        } else if (action === 'error') {
+          status.textContent = data;
+          _speak(data);
+          _log('⚠ ' + data, 'error');
+
+        } else if (action === 'status') {
+          status.textContent = data;
+          _log('✓ ' + data, 'done');
+
+        } else if (action === 'ready') {
+          status.textContent = 'Ready — click to speak a command';
+          btn.classList.remove('active');
+          btn.textContent = '🎤 RECORD';
+          busy = false;
+        }
+
+        return true;
+      }
+    };
+  </script>
+</body>
+</html>
