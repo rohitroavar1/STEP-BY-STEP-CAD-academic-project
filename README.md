@@ -12,11 +12,9 @@
 
 ## Demo
 
-[![StepByStepCAD demo](https://img.youtube.com/vi/VIDEO_ID/maxresdefault.jpg)](https://youtu.be/VIDEO_ID)
+[![StepByStepCAD demo](https://img.youtube.com/vi/4cAQCI9BKyU/maxresdefault.jpg)](https://youtu.be/4cAQCI9BKyU)
 
 *Wake-word activation → spoken sketch and solid commands → voice-confirmed feature creation, executed live in Fusion 360 with minimal mouse input.*
-
-> Replace `VIDEO_ID` above with your YouTube video ID. If the thumbnail appears broken, swap `maxresdefault.jpg` for `hqdefault.jpg`.
 
 ---
 
